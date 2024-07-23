@@ -1,0 +1,196 @@
+import pyttsx3 as p
+import speech_recognition as sr
+from selenium_web import Inflow, Music  # Import the Inflow and Music classes from selenium_web.py
+import requests
+from ss import key  # Import the API key from ss.py
+import randfacts  # Import the randfacts module
+import threading  # Import threading for background listening
+import pyautogui  # Import pyautogui to simulate keyboard presses
+
+# Initialize the text-to-speech engine
+engine = p.init()
+rate = engine.getProperty('rate')
+engine.setProperty('rate', 180)  # Set speech rate
+voices = engine.getProperty('voices')
+print(voices)  # Print available voices
+engine.setProperty('voice', voices[1].id)  # Set the voice to the second one (usually female)
+print(rate)  # Print the speech rate
+
+# Define the function to speak text
+def speak(text):
+    engine.say(text)
+    engine.runAndWait()
+
+# Define the function to fetch and read news
+def fetch_news():
+    api_address = "https://newsapi.org/v2/top-headlines?country=us&apiKey=" + key
+    json_data = requests.get(api_address).json()
+    
+    ar = []
+    for i in range(3):
+        title = json_data["articles"][i]["title"]
+        ar.append(f"Number {i + 1}: {title}.")
+    
+    return ar
+
+# Define the function to fetch and read random facts
+def fetch_random_facts():
+    while True:
+        fact = randfacts.get_fact()
+        speak("Did you know that " + fact)
+        print("Did you know that " + fact)
+
+        speak("Would you like to listen to one more fact?")
+        print("Would you like to listen to one more fact?")
+
+        with sr.Microphone() as source:
+            r.adjust_for_ambient_noise(source, duration=2.0)
+            audio = r.listen(source)
+
+            try:
+                response = r.recognize_google(audio)
+                print(response)
+                if "stop" in response.lower() or "that's it" in response.lower():
+                    speak("Alright, stopping the facts.")
+                    break
+            except sr.UnknownValueError:
+                print("Google Speech Recognition could not understand audio")
+            except sr.RequestError as e:
+                print(f"Could not request results from Google Speech Recognition service; {e}")
+
+# Define a function to handle the main loop of commands
+def main():
+    speak("Hello ma'am, I am your voice assistant Mindless. How are you?")
+
+    while True:
+        # Recognize speech from the user
+        r = sr.Recognizer()
+        with sr.Microphone() as source:
+            r.energy_threshold = 10000
+            r.adjust_for_ambient_noise(source, duration=2.0)  # Increased duration
+            print("Listening...")
+            audio = r.listen(source)
+
+            try:
+                text = r.recognize_google(audio)
+                print(text)
+            except sr.UnknownValueError:
+                print("Google Speech Recognition could not understand audio")
+                text = ""
+            except sr.RequestError as e:
+                print(f"Could not request results from Google Speech Recognition service; {e}")
+                text = ""
+
+        # Respond based on the user's input
+        if "what" in text and "about" in text and "you" in text:
+            speak("I am having a good day ma'am")
+
+        elif "information" in text:
+            speak("You need information related to which topic?")
+            
+            # Recognize speech for the specific topic
+            with sr.Microphone() as source:
+                r.energy_threshold = 10000
+                r.adjust_for_ambient_noise(source, duration=2.0)  # Increased duration
+                print("Listening...")
+                audio = r.listen(source)
+
+                try:
+                    topic = r.recognize_google(audio)
+                    print(topic)
+                except sr.UnknownValueError:
+                    print("Google Speech Recognition could not understand audio")
+                    topic = ""
+                except sr.RequestError as e:
+                    print(f"Could not request results from Google Speech Recognition service; {e}")
+                    topic = ""
+
+            # Create an instance of the Inflow class and call the get_info method
+            speak("Searching Wikipedia for {}".format(topic))
+            inflow_instance = Inflow()
+            inflow_instance.get_info(topic)  # Pass the recognized topic to the get_info method
+
+        elif "play" in text and "video" in text:
+            speak("What song would you like to hear?")
+            
+            # Recognize speech for the specific song
+            with sr.Microphone() as source:
+                r.energy_threshold = 10000
+                r.adjust_for_ambient_noise(source, duration=2.0)  # Increased duration
+                print("Listening...")
+                audio = r.listen(source)
+
+                try:
+                    song = r.recognize_google(audio)
+                    print(song)
+                except sr.UnknownValueError:
+                    print("Google Speech Recognition could not understand audio")
+                    song = ""
+                except sr.RequestError as e:
+                    print(f"Could not request results from Google Speech Recognition service; {e}")
+                    song = ""
+
+            # Create an instance of the Music class and call the play method
+            speak("Playing {} on YouTube".format(song))
+            music_instance = Music()
+            music_instance.play(song)  # Pass the recognized song to the play method
+
+        elif "news" in text:
+            speak("Fetching the latest news for you.")
+            news_articles = fetch_news()
+            for article in news_articles:
+                print(article)
+                speak(article)
+
+        elif "fact" in text:
+            fetch_random_facts()
+
+        # Ask the user if they need anything else
+        speak("Is there anything else I can help you with?")
+        print("Is there anything else I can help you with?")
+
+        with sr.Microphone() as source:
+            r.adjust_for_ambient_noise(source, duration=2.0)
+            audio = r.listen(source)
+
+            try:
+                response = r.recognize_google(audio)
+                print(response)
+                if "stop" in response.lower() or "that's it" in response.lower():
+                    speak("Alright, have a great day ma'am!")
+                    break
+            except sr.UnknownValueError:
+                print("Google Speech Recognition could not understand audio")
+            except sr.RequestError as e:
+                print(f"Could not request results from Google Speech Recognition service; {e}")
+
+# Define a function to handle background listening for the "close" command
+def background_listening():
+    r = sr.Recognizer()
+    while True:
+        with sr.Microphone() as source:
+            r.adjust_for_ambient_noise(source, duration=2.0)
+            audio = r.listen(source)
+
+            try:
+                text = r.recognize_google(audio)
+                print(f"Background Listening: {text}")
+                if "close" in text.lower():
+                    speak("Closing the tab and asking what else I can do for you.")
+                    pyautogui.hotkey('ctrl', 'w')  # Simulate Ctrl + W to close the tab
+                    speak("What else can I do for you?")
+            except sr.UnknownValueError:
+                pass  # Ignore unknown value errors
+            except sr.RequestError as e:
+                print(f"Could not request results from Google Speech Recognition service; {e}")
+
+# Run the background listening in a separate thread
+background_thread = threading.Thread(target=background_listening)
+background_thread.daemon = True
+background_thread.start()
+
+# Run the main function
+main()
+
+# End of the script
+print("Script completed.")

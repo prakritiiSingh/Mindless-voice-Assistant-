@@ -1,0 +1,413 @@
+import pyttsx3 as p
+import speech_recognition as sr
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.common.keys import Keys
+import requests
+from ss import key  # Ensure you have a file named ss.py with `key` defined
+import randfacts
+import cv2  # Add OpenCV import
+
+# Define the Inflow class to fetch Wikipedia information using ChromeDriver
+class Inflow:
+    def __init__(self):
+        self.driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
+
+    def get_info(self, topic):
+        self.driver.get(f"https://en.wikipedia.org/wiki/{topic}")
+        try:
+            summary = self.driver.find_element(By.XPATH, '//*[@id="mw-content-text"]/div[1]/p[1]').text
+            speak(summary)
+            print(summary)
+        except Exception as e:
+            speak("Sorry, I could not find any information on that topic.")
+            print("Error: No information found.")
+
+    def quit(self):
+        self.driver.quit()
+
+# Define the function to introduce the assistant
+def about_me():
+    introduction = (
+        "Hello! I am Mindless, your voice assistant. "
+        "I can help you with a variety of tasks including "
+        "fetching the latest news, telling you random facts, "
+        "playing videos on YouTube, telling jokes, and more. "
+        "Just tell me what you need help with, and I'll do my best to assist you!"
+    )
+    speak(introduction)
+    print(introduction)
+
+# Initialize the text-to-speech engine
+engine = p.init()
+rate = engine.getProperty('rate')
+engine.setProperty('rate', 180)  # Set speech rate
+voices = engine.getProperty('voices')
+engine.setProperty('voice', voices[1].id)  # Set the voice to the second one (usually female)
+
+# Define the function to speak text
+def speak(text):
+    engine.say(text)
+    engine.runAndWait()
+
+# Define the function to fetch and read news
+def fetch_news():
+    api_address = f"https://newsapi.org/v2/top-headlines?country=us&apiKey={key}"
+    json_data = requests.get(api_address).json()
+    
+    articles = json_data["articles"][:3]  # Limit to 3 articles
+    news_list = [f"Number {i + 1}: {article['title']}." for i, article in enumerate(articles)]
+    
+    return news_list
+
+# Define the function to fetch and read random facts
+def fetch_random_facts():
+    fact = randfacts.get_fact()
+    speak("Did you know that " + fact)
+    speak("Would you like to listen to one more fact?")
+
+# Define the function to tell a joke
+def tell_joke():
+    joke_url = "https://official-joke-api.appspot.com/random_joke"
+    response = requests.get(joke_url).json()
+    joke = f"{response['setup']} {response['punchline']}"
+    speak(joke)
+    print(joke)
+
+# Define the function to fetch the weather
+def fetch_weather():
+    city = "Mohali"  # Default city
+    api_key = "736a14fc7a8dfda4cb93a4a6201110f7"  # Your OpenWeatherMap API key
+    weather_url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric"
+    response = requests.get(weather_url).json()
+
+    if response.get("cod") != 200:
+        speak(f"Sorry, I couldn't fetch the weather for {city}.")
+        print(f"Error fetching weather: {response.get('message', 'Unknown error')}")
+        return
+
+    try:
+        weather = response['weather'][0]['description']
+        temp = response['main']['temp']
+        speak(f"The current weather in {city} is {weather} with a temperature of {temp} degrees Celsius.")
+        print(f"The current weather in {city} is {weather} with a temperature of {temp} degrees Celsius.")
+    except KeyError as e:
+        speak(f"Sorry, I couldn't retrieve the weather information. Please try again later.")
+        print(f"Error: Missing key in API response - {e}")
+    except Exception as e:
+        speak(f"Sorry, there was an error fetching the weather information.")
+        print(f"An error occurred: {e}")
+
+
+# Define a function to open a website and perform a search
+def open_website(site_name):
+    urls = {
+        "amazon": "https://www.amazon.com",
+        "youtube": "https://www.youtube.com",
+        "wikipedia": "https://www.wikipedia.org",
+        "pinterest": "https://www.pinterest.com",
+        "myntra": "https://www.myntra.com",
+        "flipkart": "https://www.flipkart.com",
+        "google": "https://www.google.com"
+    }
+    
+    if site_name.lower() in urls:
+        url = urls[site_name.lower()]
+        speak(f"Opening {site_name} for you.")
+        service = Service(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service)
+        driver.get(url)
+
+        # If the site has a search box, activate it
+        search_box = None
+        if site_name.lower() in ["amazon", "youtube", "wikipedia", "pinterest", "flipkart", "google"]:
+            if site_name.lower() == "amazon":
+                search_box = driver.find_element(By.ID, 'twotabsearchtextbox')
+            elif site_name.lower() == "youtube":
+                search_box = driver.find_element(By.NAME, 'search_query')
+            elif site_name.lower() == "wikipedia":
+                search_box = driver.find_element(By.ID, 'searchInput')
+            elif site_name.lower() == "pinterest":
+                search_box = driver.find_element(By.NAME, 'searchBoxInput')
+            elif site_name.lower() == "flipkart":
+                search_box = driver.find_element(By.NAME, 'q')
+            elif site_name.lower() == "google":
+                search_box = driver.find_element(By.NAME, 'q')
+
+        if search_box:
+            speak(f"What would you like to search for on {site_name}?")
+            r = sr.Recognizer()
+            with sr.Microphone() as source:
+                r.adjust_for_ambient_noise(source, duration=0.5)
+                print("Listening...")
+                audio = r.listen(source, timeout=10)
+
+                try:
+                    search_query = r.recognize_google(audio)
+                    print(f"Searching for '{search_query}' on {site_name}.")
+                    search_box.send_keys(search_query)
+                    search_box.send_keys(Keys.RETURN)
+                    speak(f"Searching for {search_query} on {site_name}.")
+                except sr.UnknownValueError:
+                    print("Google Speech Recognition could not understand audio")
+                    speak("Sorry, I didn't catch that.")
+                except sr.RequestError as e:
+                    print(f"Could not request results from Google Speech Recognition service; {e}")
+                    speak("Sorry, there was an error with the speech recognition service.")
+        else:
+            speak(f"Sorry, there is no search functionality available for {site_name}.")
+
+        # Keep the browser open
+        speak(f"I have opened {site_name}. You can now interact with the website.")
+        print(f"I have opened {site_name}. You can now interact with the website.")
+        input("Press Enter to close the browser...")
+        driver.quit()
+    else:
+        speak(f"Sorry, I don't know how to open {site_name}.")
+        print(f"Sorry, I don't know how to open {site_name}.")
+
+# Define a function to search on Google
+def search_google(query, image_search=False):
+    # Initialize ChromeDriver
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service)
+    
+    if image_search:
+        driver.get(f"https://www.google.com/search?hl=en&tbm=isch&q={query}")
+    else:
+        driver.get(f"https://www.google.com/search?q={query}")
+
+    speak(f"Searching Google for {query}.")
+    print(f"Searching Google for {query}.")
+    
+    # Keep the browser open
+    speak(f"I have opened Google. You can now interact with the website.")
+    print(f"I have opened Google. You can now interact with the website.")
+    input("Press Enter to close the browser...")
+    driver.quit()
+
+
+# Define a function to search for a location on Google Maps
+def google_maps_search(location):
+    speak(f"Searching Google Maps for {location}.")
+    maps_url = f"https://www.google.com/maps/search/{location}"
+    # Initialize ChromeDriver
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service)
+    driver.get(maps_url)
+    
+    # Keep the browser open
+    speak(f"I have opened Google Maps for {location}. You can now interact with the map.")
+    print(f"I have opened Google Maps for {location}. You can now interact with the map.")
+    input("Press Enter to close the browser...")
+    driver.quit()
+
+# Define a function to open games on Poki
+def open_poki():
+    speak("Opening Poki for you.")
+    poki_url = "https://poki.com/"
+    # Initialize ChromeDriver
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service)
+    driver.get(poki_url)
+    
+    # Keep the browser open
+    speak("I have opened Poki. You can now choose a game to play.")
+    print("I have opened Poki. You can now choose a game to play.")
+    input("Press Enter to close the browser...")
+    driver.quit()
+
+# Define a function to open the camera
+def open_camera():
+    cap = cv2.VideoCapture(0)
+    
+    if not cap.isOpened():
+        speak("Sorry, I couldn't access the camera.")
+        print("Error: Camera could not be opened.")
+        return
+
+    speak("Camera is now open. Press 'q' to close the camera.")
+    print("Camera is now open. Press 'q' to close the camera.")
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            speak("Sorry, I couldn't fetch the camera frame.")
+            print("Error: Camera frame could not be captured.")
+            break
+        
+        # Save the frame as a file or process it if needed
+        # Example: cv2.imwrite('frame.jpg', frame)
+        
+        # Check for 'q' key press to exit (remove the display part)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
+
+
+
+# Define a function to handle the main loop of commands
+def main():
+    speak("Hello buddy, I am your voice assistant Mindless. What is up with you?")
+
+    while True:
+        r = sr.Recognizer()
+        with sr.Microphone() as source:
+            r.adjust_for_ambient_noise(source, duration=0.5)
+            print("Listening...")
+            try:
+                audio = r.listen(source, timeout=10)
+                text = r.recognize_google(audio)
+                print(text)
+            except sr.UnknownValueError:
+                print("Google Speech Recognition could not understand audio")
+                speak("Sorry, I didn't catch that. Can you please repeat?")
+                continue  # Continue to the next iteration to listen again
+            except sr.RequestError as e:
+                print(f"Could not request results from Google Speech Recognition service; {e}")
+                speak("Sorry, there was an error with the speech recognition service. Please try again later.")
+                continue  # Continue to the next iteration to listen again
+            except sr.WaitTimeoutError:
+                print("Listening timed out while waiting for phrase to start")
+                speak("I didn't hear anything. Can you please say that again?")
+                continue  # Continue to the next iteration to listen again
+
+        # Convert text to lower case for case-insensitive matching
+        text = text.lower()
+
+        # Respond based on the user's input
+        if "tell me about yourself" in text or "about yourself" in text:
+            about_me()  # Call the function to introduce the assistant
+
+        elif "what" in text and "about" in text and "you" in text:
+            speak("I am having a good day ma'am")
+
+        elif "information" in text:
+            speak("You need information related to which topic?")
+            topic = listen_for_topic()
+
+            if topic:
+                speak(f"Searching Wikipedia for {topic}")
+                inflow_instance = Inflow()
+                inflow_instance.get_info(topic)
+                inflow_instance.quit()
+            else:
+                speak("Sorry, I didn't get that. Please try again.")
+
+        elif "play" in text and "video" in text:
+            speak("What video would you like to play on YouTube?")
+            video = listen_for_video()
+
+            if video:
+                speak(f"Playing {video} on YouTube")
+                play_youtube_video(video)
+            else:
+                speak("Sorry, I didn't catch that. Can you please repeat?")
+
+        elif "news" in text:
+            speak("Fetching the latest news headlines.")
+            news = fetch_news()
+            for item in news:
+                speak(item)
+                print(item)
+
+        elif "random fact" in text:
+            fetch_random_facts()
+
+        elif "joke" in text:
+            tell_joke()
+
+        elif "weather" in text:
+            fetch_weather()
+
+        elif "google" in text:
+            search_query = text.replace("google", "").strip()
+            if search_query:
+                google_search(search_query)
+            else:
+                speak("What would you like to search for on Google?")
+
+        elif "maps" in text:
+            location = text.replace("maps", "").strip()
+            if location:
+                google_maps_search(location)
+            else:
+                speak("Which location would you like to search for on Google Maps?")
+
+        elif "poki" in text:
+            open_poki()
+
+        elif "camera" in text:
+            open_camera()
+
+        elif "quit" in text or "exit" in text or "bye" in text:
+            speak("Goodbye! Have a nice day.")
+            break
+
+        else:
+            speak("Sorry, I didn't understand that. Can you please repeat?")
+
+# Helper functions
+def listen_for_topic():
+    r = sr.Recognizer()
+    with sr.Microphone() as source:
+        r.adjust_for_ambient_noise(source, duration=0.5)
+        print("Listening for topic...")
+        try:
+            audio = r.listen(source, timeout=10)
+            topic = r.recognize_google(audio)
+            print(topic)
+            return topic
+        except sr.UnknownValueError:
+            print("Google Speech Recognition could not understand audio")
+            return ""
+        except sr.RequestError as e:
+            print(f"Could not request results from Google Speech Recognition service; {e}")
+            return ""
+
+def listen_for_video():
+    r = sr.Recognizer()
+    with sr.Microphone() as source:
+        r.adjust_for_ambient_noise(source, duration=0.5)
+        print("Listening for video...")
+        try:
+            audio = r.listen(source, timeout=10)
+            video = r.recognize_google(audio)
+            print(video)
+            return video
+        except sr.UnknownValueError:
+            print("Google Speech Recognition could not understand audio")
+            return ""
+        except sr.RequestError as e:
+            print(f"Could not request results from Google Speech Recognition service; {e}")
+            return ""
+
+def play_youtube_video(video):
+    # Initialize ChromeDriver
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
+    driver.get("https://www.youtube.com")
+
+    try:
+        search_box = driver.find_element(By.NAME, "search_query")
+        search_box.send_keys(video)
+        search_box.send_keys(Keys.RETURN)
+
+        # Wait for search results to load and click the first video
+        driver.implicitly_wait(5)  # Adjust wait time as needed
+        first_video = driver.find_element(By.ID, "video-title")
+        first_video.click()
+
+        speak(f"Playing the first result for {video}")
+    except Exception as e:
+        speak("Sorry, I encountered an error while trying to play the video.")
+        print(f"Error: {e}")
+    finally:
+        input("Press Enter to close the browser...")
+        driver.quit()
+
+if __name__ == "__main__":
+    main()

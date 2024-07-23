@@ -1,0 +1,155 @@
+import tkinter as tk
+from tkinter import messagebox
+from main import speak, fetch_news, fetch_random_facts, open_amazon, open_pinterest, open_myntra, open_flipkart  # Import functions from your main script
+import speech_recognition as sr
+import threading
+
+class VoiceAssistantGUI:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Mindless Voice Assistant")
+        self.root.geometry("600x500")  # Set the window size
+
+        # Add a greeting label
+        self.greeting_label = tk.Label(root, text="Hello! I am your voice assistant, Mindless.", font=("Arial", 16), fg="blue")
+        self.greeting_label.pack(pady=10)
+
+        # Load the image
+        self.image = tk.PhotoImage(file="voice_image.gif")  # Ensure this path is correct
+        self.image_label = tk.Label(root, image=self.image)
+        self.image_label.pack(pady=10)
+
+        # Add the main label
+        self.label = tk.Label(root, text="What can I do for you today?", font=("Arial", 20))
+        self.label.pack(pady=10)
+
+        # Create a canvas to place the image
+        self.canvas = tk.Canvas(root, width=500, height=200, bg='white')
+        self.canvas.pack(pady=10)
+        
+        # Add the image to the canvas
+        self.canvas.create_image(250, 100, image=self.image)  # Center the image in the canvas
+        
+        # Add a text widget to display responses
+        self.text = tk.Text(root, height=10, width=70)
+        self.text.pack(pady=10)
+        
+        # Add buttons for different functionalities
+        self.listen_button = tk.Button(root, text="Listen", command=self.listen, width=20, height=2, bg="lightblue", font=("Arial", 12))
+        self.listen_button.pack(pady=5)
+        
+        self.news_button = tk.Button(root, text="Fetch News", command=self.fetch_news, width=20, height=2, bg="lightgreen", font=("Arial", 12))
+        self.news_button.pack(pady=5)
+        
+        self.fact_button = tk.Button(root, text="Tell me a Fact", command=self.fetch_random_facts, width=20, height=2, bg="lightyellow", font=("Arial", 12))
+        self.fact_button.pack(pady=5)
+        
+        self.amazon_button = tk.Button(root, text="Open Amazon", command=self.open_amazon, width=20, height=2, bg="lightcoral", font=("Arial", 12))
+        self.amazon_button.pack(pady=5)
+
+        self.pinterest_button = tk.Button(root, text="Open Pinterest", command=self.open_pinterest, width=20, height=2, bg="lightpink", font=("Arial", 12))
+        self.pinterest_button.pack(pady=5)
+
+        self.myntra_button = tk.Button(root, text="Open Myntra", command=self.open_myntra, width=20, height=2, bg="lightgrey", font=("Arial", 12))
+        self.myntra_button.pack(pady=5)
+
+        self.flipkart_button = tk.Button(root, text="Open Flipkart", command=self.open_flipkart, width=20, height=2, bg="lightblue", font=("Arial", 12))
+        self.flipkart_button.pack(pady=5)
+
+        self.exit_button = tk.Button(root, text="Exit", command=root.quit, width=20, height=2, bg="red", fg="white", font=("Arial", 12))
+        self.exit_button.pack(pady=20)
+
+    def listen(self):
+        # Implement the listen functionality
+        self.text.delete(1.0, tk.END)
+        speak("Listening for your command. Please speak now.")
+        self.text.insert(tk.END, "Listening for your command. Please speak now...\n")
+        # Run the command recognition in a separate thread
+        threading.Thread(target=self.listen_for_commands).start()
+
+    def listen_for_commands(self):
+        r = sr.Recognizer()
+        with sr.Microphone() as source:
+            r.energy_threshold = 10000
+            r.adjust_for_ambient_noise(source, duration=2.0)
+            print("Listening...")
+            audio = r.listen(source)
+
+            try:
+                text = r.recognize_google(audio)
+                print(text)
+
+                if "open amazon" in text.lower():
+                    open_amazon()
+                    self.text.insert(tk.END, "Opening Amazon...\n")
+                    speak("Opening Amazon for you.")
+                elif "open pinterest" in text.lower():
+                    open_pinterest()
+                    self.text.insert(tk.END, "Opening Pinterest...\n")
+                    speak("Opening Pinterest for you.")
+                elif "open myntra" in text.lower():
+                    open_myntra()
+                    self.text.insert(tk.END, "Opening Myntra...\n")
+                    speak("Opening Myntra for you.")
+                elif "open flipkart" in text.lower():
+                    open_flipkart()
+                    self.text.insert(tk.END, "Opening Flipkart...\n")
+                    speak("Opening Flipkart for you.")
+                elif "news" in text.lower():
+                    self.fetch_news()
+                elif "fact" in text.lower():
+                    self.fetch_random_facts()
+                elif "stop" in text.lower() or "that's it" in text.lower():
+                    speak("Alright, have a great day!")
+                else:
+                    self.text.insert(tk.END, "Command not recognized.\n")
+                    speak("Command not recognized.")
+
+            except sr.UnknownValueError:
+                self.text.insert(tk.END, "Could not understand audio.\n")
+                speak("Sorry, I could not understand the audio.")
+            except sr.RequestError as e:
+                self.text.insert(tk.END, f"Request error: {e}\n")
+                speak(f"Sorry, there was an error: {e}")
+
+    def fetch_news(self):
+        news_articles = fetch_news()
+        self.text.delete(1.0, tk.END)
+        for article in news_articles:
+            self.text.insert(tk.END, article + "\n")
+        speak("Here are the latest news headlines.")
+
+    def fetch_random_facts(self):
+        fact = fetch_random_facts()
+        self.text.delete(1.0, tk.END)
+        self.text.insert(tk.END, fact + "\n")
+        speak(fact)
+
+    def open_amazon(self):
+        open_amazon()
+        self.text.delete(1.0, tk.END)
+        self.text.insert(tk.END, "Opening Amazon...\n")
+        speak("Opening Amazon for you.")
+
+    def open_pinterest(self):
+        open_pinterest()
+        self.text.delete(1.0, tk.END)
+        self.text.insert(tk.END, "Opening Pinterest...\n")
+        speak("Opening Pinterest for you.")
+
+    def open_myntra(self):
+        open_myntra()
+        self.text.delete(1.0, tk.END)
+        self.text.insert(tk.END, "Opening Myntra...\n")
+        speak("Opening Myntra for you.")
+
+    def open_flipkart(self):
+        open_flipkart()
+        self.text.delete(1.0, tk.END)
+        self.text.insert(tk.END, "Opening Flipkart...\n")
+        speak("Opening Flipkart for you.")
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = VoiceAssistantGUI(root)
+    root.mainloop()
